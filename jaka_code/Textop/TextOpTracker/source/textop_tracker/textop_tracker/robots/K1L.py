@@ -3,6 +3,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
 from textop_tracker.assets import ASSET_DIR
+from textop_tracker.robots.actuator import DelayedImplicitActuatorCfg
 
 ARMATURE_5020 = 0.003609725
 ARMATURE_7520_14 = 0.010177520
@@ -21,6 +22,22 @@ DAMPING_5020 = 2.0 * DAMPING_RATIO * ARMATURE_5020 * NATURAL_FREQ
 DAMPING_7520_14 = 2.0 * DAMPING_RATIO * ARMATURE_7520_14 * NATURAL_FREQ
 DAMPING_7520_22 = 2.0 * DAMPING_RATIO * ARMATURE_7520_22 * NATURAL_FREQ
 DAMPING_4010 = 2.0 * DAMPING_RATIO * ARMATURE_4010 * NATURAL_FREQ
+
+# -----------------------------------------------------------------------------
+# Actuator command-delay randomization (unit: physics steps; sim.dt = 0.005 s -> 5 ms)
+#
+# The ideal-PD implicit actuator assumes the position target takes effect
+# immediately, while the real robot has a non-zero link delay (policy -> motor and
+# VR reference stream: typically 10-40 ms). Randomizing the command delay at every
+# reset teaches the policy to tolerate this lag.
+#
+# References: HEFT uses max_delay = 2 physics steps (0-10 ms); MimicLite uses
+# min_delay = 1 / max_delay = 3 physics steps (5-15 ms). Here we cover 0-20 ms.
+# Raise ACTUATOR_DELAY_MAX_STEPS to 8 (0-40 ms) once the measured link latency of
+# the real setup is confirmed.
+# -----------------------------------------------------------------------------
+ACTUATOR_DELAY_MIN_STEPS = 0
+ACTUATOR_DELAY_MAX_STEPS = 4
 
 K1L_CYLINDER_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(#UrdfFileCfg(
@@ -255,7 +272,9 @@ spawn=sim_utils.UrdfFileCfg(
     soft_joint_pos_limit_factor=0.90,
 
     actuators={
-        "legs": ImplicitActuatorCfg(
+        "legs": DelayedImplicitActuatorCfg(
+            min_delay=ACTUATOR_DELAY_MIN_STEPS,
+            max_delay=ACTUATOR_DELAY_MAX_STEPS,
             joint_names_expr=[ #0.62 21.91
                 ".*_hip_yaw_joint",
                 ".*_hip_roll_joint",
@@ -288,7 +307,9 @@ spawn=sim_utils.UrdfFileCfg(
             },
             armature=0.03, #JX9-120 model
         ),
-        "feet": ImplicitActuatorCfg(
+        "feet": DelayedImplicitActuatorCfg(
+            min_delay=ACTUATOR_DELAY_MIN_STEPS,
+            max_delay=ACTUATOR_DELAY_MAX_STEPS,
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             effort_limit_sim=96.0,
             velocity_limit_sim=14.6,
@@ -312,7 +333,9 @@ spawn=sim_utils.UrdfFileCfg(
             armature=0.016,
             
         ),
-        "arm": ImplicitActuatorCfg(
+        "arm": DelayedImplicitActuatorCfg(
+            min_delay=ACTUATOR_DELAY_MIN_STEPS,
+            max_delay=ACTUATOR_DELAY_MAX_STEPS,
             joint_names_expr=[".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist_.*_joint"],
             effort_limit_sim={
                 ".*_shoulder_pitch_joint": 96.0,
@@ -371,7 +394,9 @@ spawn=sim_utils.UrdfFileCfg(
                 ".*_wrist_.*_joint": 0.01, #0.0005,
             },
         ),
-        "others": ImplicitActuatorCfg(
+        "others": DelayedImplicitActuatorCfg(
+            min_delay=ACTUATOR_DELAY_MIN_STEPS,
+            max_delay=ACTUATOR_DELAY_MAX_STEPS,
             joint_names_expr=["waist_yaw_joint", "Neck_yaw_joint", "Neck_pitch_joint"],
             effort_limit_sim={
                 "waist_yaw_joint": 120.0,

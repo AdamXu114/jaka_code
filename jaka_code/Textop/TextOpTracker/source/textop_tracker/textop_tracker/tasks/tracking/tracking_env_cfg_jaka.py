@@ -433,6 +433,68 @@ class EventCfg:
         },
     )
 
+    # ---------------------------------------------------------------------
+    # Actuator randomization -- mirrors MimicLite `actuator_params`
+    # (active_adaptation randomizations/actuator.py: actuator_pd_gains +
+    # armature_range). Gains/armature are re-sampled at every episode reset and
+    # are relative scales w.r.t. the nominal (configured) values.
+    #   - upper body (shoulder / elbow / wrist): +/-10%
+    #   - lower body + waist + neck          : +/-20%
+    #   - armature (all joints)              : [0.75, 1.25]
+    # Under the hood these call Articulation.write_joint_stiffness_to_sim /
+    # write_joint_damping_to_sim / write_joint_armature_to_sim, i.e. the same
+    # APIs used by the isaaclab backend branch of MimicLite.
+    # Note: use mode="startup" instead of "reset" to sample the parameters only
+    # once per environment (cheaper, but no per-episode re-sampling).
+    # ---------------------------------------------------------------------
+    actuator_gains_upper = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="reset",
+        params={
+            "asset_cfg":
+                SceneEntityCfg(
+                    "robot",
+                    joint_names=[".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist.*_joint"],
+                ),
+            "stiffness_distribution_params": (0.9, 1.1),
+            "damping_distribution_params": (0.9, 1.1),
+            "operation": "scale",
+            "distribution": "uniform",
+        },
+    )
+
+    actuator_gains_lower = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="reset",
+        params={
+            "asset_cfg":
+                SceneEntityCfg(
+                    "robot",
+                    joint_names=[
+                        ".*_hip_.*_joint",
+                        ".*_knee_joint",
+                        ".*_ankle_.*_joint",
+                        ".*(waist|[Nn]eck).*joint",
+                    ],
+                ),
+            "stiffness_distribution_params": (0.8, 1.2),
+            "damping_distribution_params": (0.8, 1.2),
+            "operation": "scale",
+            "distribution": "uniform",
+        },
+    )
+
+    joint_armature = EventTerm(
+        func=mdp.randomize_joint_parameters,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
+            "armature_distribution_params": (0.75, 1.25),
+            "operation": "scale",
+            "distribution": "uniform",
+        },
+    )
+
     # interval
     push_robot = EventTerm(
         func=mdp.push_by_setting_velocity,
